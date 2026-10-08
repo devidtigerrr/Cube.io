@@ -127,8 +127,85 @@ function toast(msg){const e=$('toast');e.textContent=msg;e.classList.add('show')
 let me={cells:[],hue:200,name:'',l:0,k:0};
 let playing=false,peak=0,kills=0,curMatch=-1,inResults=false,mouse={x:0,y:0},cam={x:WORLD/2,y:WORLD/2,z:1};
 let food=[],bots=[],pellets=[],viruses=[],eaten=new Map(),smooth=new Map();
-let room=null,botsOn=true,aloneT=0,lastW=0,pid=0;
+let let room=null,botsOn=true,aloneT=0,lastW=0,pid=0;
+let socket=null;
+let remotePlayers=new Map();
 const myId=Math.random().toString(36).slice(2,8);
+ // ---------- Socket.IO multiplayer ----------
+function connectMultiplayer(){
+  if(typeof io!=="function"){
+    console.log("Socket.IO nem töltődött be.");
+    return;
+  }
+
+  socket=io();
+
+  socket.on("connect",()=>{
+    console.log("Cube.io multiplayer connected:",socket.id);
+    $('net').classList.remove('hide');
+
+    if(playing){
+      sendJoin();
+    }
+  });
+
+  socket.on("players",(list)=>{
+    remotePlayers.clear();
+
+    for(const p of list){
+      if(p.id!==socket.id){
+        remotePlayers.set(p.id,p);
+      }
+    }
+  });
+
+  socket.on("playerJoined",(p)=>{
+    if(p.id!==socket.id){
+      remotePlayers.set(p.id,p);
+    }
+  });
+
+  socket.on("playerUpdate",(p)=>{
+    if(p.id!==socket.id){
+      remotePlayers.set(p.id,p);
+    }
+  });
+
+  socket.on("playerLeft",(id)=>{
+    remotePlayers.delete(id);
+  });
+
+  socket.on("disconnect",()=>{
+    console.log("Multiplayer disconnected");
+    remotePlayers.clear();
+  });
+}
+
+function sendJoin(){
+  if(!socket||!socket.connected||!playing)return;
+
+  socket.emit("join",{
+    name:me.name,
+    x:me.cells[0]?.x||2500,
+    y:me.cells[0]?.y||2500,
+    skin:me.k
+  });
+}
+
+function sendPlayerUpdate(){
+  if(!socket||!socket.connected||!playing||!me.cells.length)return;
+
+  const c=me.cells[0];
+
+  socket.emit("update",{
+    x:c.x,
+    y:c.y,
+    mass:total(),
+    skin:me.k
+  });
+}
+
+connectMultiplayer();
 const total=()=>me.cells.reduce((s,c)=>s+c.m,0);
 function buildBoard(rs){
   const board=[];
